@@ -1,5 +1,6 @@
 # Azure AI Foundry / OpenAI
 openai>=1.0.0
+aiohttp>=3.13  # openai 3.x loads its vendored httpx_aiohttp adapter at import time
 azure-identity>=1.16.0
 azure-ai-projects>=1.0.0b10
 
