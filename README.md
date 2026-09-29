@@ -1,6 +1,27 @@
 # Foundry Learning
 
-Hands-on learning project for **Microsoft Azure AI Foundry** — from simple chat calls to agents, evaluations, and model deployments.
+Hands-on learning project for **Microsoft Foundry** (formerly Azure AI Foundry) — from simple chat calls to tools, evaluations, and responsible AI. Each chapter pairs runnable Python with a module from an official Microsoft Learn path.
+
+## 🎓 Training track
+
+This repo follows the Microsoft Learn path:
+
+**[Develop generative AI apps on Microsoft Foundry](https://learn.microsoft.com/training/paths/develop-generative-ai-apps/)** (AI-3016 · Intermediate · 6 modules)
+
+**Goal:** learn to build, ground, evaluate, and ship a generative-AI app responsibly — by writing code for each concept, not just reading.
+
+### Module ↔ chapter map
+
+| # | MS Learn module | What it teaches | Repo chapter | Status |
+|---|---|---|---|---|
+| 1 | [Plan and prepare to develop AI solutions on Azure](https://learn.microsoft.com/training/modules/prepare-azure-ai-development/) | Pick services, create a Foundry project, set up your dev environment | [Quick Start](#quick-start-5-minutes) below (project, deployment, `az login`, IAM) | ✅ |
+| 2 | [Select, deploy, and evaluate Microsoft Foundry models](https://learn.microsoft.com/training/modules/model-catalog-evaluate/) | Model catalog, deploy to endpoints, evaluate with benchmarks | [Chapter 3 — Evaluations](#chapter-3--evaluations) | ✅ |
+| 3 | [Develop a generative AI chat app with Microsoft Foundry](https://learn.microsoft.com/training/modules/foundry-sdk/) | Projects + the Responses API, system messages, parameters | [Chapter 1 — Simple chat call](Chapter1-SimpleChatCall/SimpleChatCallAzure.py) | ✅ |
+| 4 | [Develop generative AI apps that use tools](https://learn.microsoft.com/training/modules/use-generative-ai-tools/) | Let the model call tools (function calling, built-in file search) | [Chapter 2 — Tools](Chapter2-Tools/) | ✅ |
+| 5 | [Optimize generative AI model performance with Microsoft Foundry](https://learn.microsoft.com/training/modules/optimize-generative-ai-model-performance/) | Prompt engineering, RAG grounding, fine-tuning, when to combine | Chapter 2 (RAG grounding) + [Chapter 3](Chapter3-Evaluations/) (measure before/after) | ✅ |
+| 6 | [Implement a responsible generative AI solution](https://learn.microsoft.com/training/modules/responsible-ai-studio/) | Map → measure → mitigate → operate; content filters & safety evaluators | [Chapter 4 — Responsible AI](#chapter-4--responsible-ai) | 🚧 |
+
+> **Certification note:** this path was previously aligned to exam **AI-102**, which Microsoft **retired June 30, 2026**. The skills are current; the badge is not. See [replacement AI credentials](https://techcommunity.microsoft.com/blog/skills-hub-blog/the-ai-job-boom-is-here-are-you-ready-to-showcase-your-skills/4494128).
 
 ## Prerequisites
 
@@ -37,9 +58,15 @@ pip install -r requirements.txt
 Copy the values from your Foundry project into the root `.env` file:
 
 ```bash
-# Required by Chapter 1 script
+# Required by Chapters 1, 3, 4 (chat + judge + guardrails)
 AZURE_OPENAI_ENDPOINT=https://<your-resource>.services.ai.azure.com/openai/v1
 AZURE_OPENAI_DEPLOYMENT_NAME=<your-deployment-name>
+
+# Optional: Chapter 3 model comparison (deploy a second model first)
+AZURE_OPENAI_DEPLOYMENT_NAME_2=<second-deployment-name>
+
+# Required by Chapter 4 safety evaluators (project endpoint, not the OpenAI one)
+AZURE_AI_PROJECT_ENDPOINT=https://<your-resource>.services.ai.azure.com/api/projects/<project-name>
 ```
 
 **Where to find these values:**
@@ -48,8 +75,9 @@ AZURE_OPENAI_DEPLOYMENT_NAME=<your-deployment-name>
 |---|---|
 | `AZURE_OPENAI_ENDPOINT` | [ai.azure.com](https://ai.azure.com) → your project → **Overview** → Endpoint |
 | `AZURE_OPENAI_DEPLOYMENT_NAME` | Project → **Models + endpoints** → deployment name column |
+| `AZURE_AI_PROJECT_ENDPOINT` | Project → **Overview** → project endpoint (contains `/api/projects/`) |
 
-> The `.env` file also contains optional variables for API-key auth, service principals, resource management, and embeddings — fill them in as needed for later chapters. `.env` is already in `.gitignore`, so secrets stay local.
+> `.env` is in `.gitignore`, so secrets stay local. Fill in the optional variables as needed per chapter.
 
 ### 5. Authenticate with Azure
 
@@ -74,7 +102,7 @@ Expected output — a response from your deployed model:
 answer: [Response(output_text='The capital of France is Paris.', ...)]
 ```
 
-## Project Structure
+## Project structure
 
 ```
 foundry-learning/
@@ -82,11 +110,52 @@ foundry-learning/
 ├── .gitignore
 ├── requirements.txt            # Python dependencies
 ├── README.md
-└── Chapter1-SimpleChatCall/    # Ch. 1: Basic chat completion via OpenAI SDK
-    └── SimpleChatCallAzure.py
+├── Chapter1-SimpleChatCall/    # Ch. 1: chat completion via OpenAI SDK (module 3)
+│   └── SimpleChatCallAzure.py
+├── Chapter2-Tools/             # Ch. 2: file-search tool + vector store (modules 4, 5)
+│   ├── setup_vector_store.py   #   one-time: upload PDF, create vector store
+│   ├── ToolCalling_VectorDB.py #   interactive chat with the file_search tool
+│   └── nu_staff_handbook.pdf
+├── Chapter3-Evaluations/       # Ch. 3: evaluations & model comparison (modules 2, 5)
+│   ├── eval_data.jsonl         #   test dataset (row 5 is wrong on purpose)
+│   ├── run_evaluation.py       #   quality evaluators via azure-ai-evaluation
+│   └── compare_models.py       #   LLM-as-judge A/B model comparison
+└── Chapter4-ResponsibleAI/     # Ch. 4: guardrails & safety (module 6)
+    ├── guardrails_demo.py      #   see the content filter block/allow prompts
+    └── measure_harms.py        #   content-safety evaluators (hate, sexual, violence, self-harm)
 ```
 
-## How the Scripts Work
+## Chapter 3 — Evaluations
+
+```bash
+python Chapter3-Evaluations/run_evaluation.py   # quality metrics on a dataset
+python Chapter3-Evaluations/compare_models.py   # needs AZURE_OPENAI_DEPLOYMENT_NAME_2
+```
+
+`run_evaluation.py` scores each row of `eval_data.jsonl` with built-in evaluators
+(groundedness, relevance, coherence, fluency, similarity, F1) using your deployment
+as the judge, and writes `eval_results.json`.
+
+`compare_models.py` sends the same prompts to two deployments and has the primary
+model judge both answers — set `AZURE_OPENAI_DEPLOYMENT_NAME_2` first.
+
+## Chapter 4 — Responsible AI
+
+Implements module 6's loop: **Map → Measure → Mitigate → Operate**.
+
+```bash
+python Chapter4-ResponsibleAI/guardrails_demo.py  # Mitigate: content filter in action
+python Chapter4-ResponsibleAI/measure_harms.py    # Measure:  safety evaluators (baseline)
+```
+
+- `guardrails_demo.py` sends benign + borderline prompts and reports whether each was
+  **answered or blocked** by the deployment's content filter — the exercise's core.
+  Adjust thresholds in the portal (deployment → content filter) and re-run to move the boundary.
+- `measure_harms.py` runs the **risk & safety evaluators** (0–7 severity for hate/fairness,
+  sexual, violence, self-harm) against your Foundry **project** (hosted evaluation service —
+  no judge model needed). This is the *baseline* you compare against after applying mitigations.
+
+## How the scripts work
 
 Each chapter loads configuration from the root `.env` automatically using:
 
@@ -107,25 +176,25 @@ client = OpenAI(base_url=endpoint, api_key=token_provider)
 ```
 
 This gives you keyless auth via Entra ID — tokens refresh automatically.
+(Chapter 4's safety evaluators use the project endpoint + `DefaultAzureCredential` directly.)
 
 ## Troubleshooting
 
 | Error | Fix |
 |---|---|
-| `KeyError: 'AZURE_OPENAI_ENDPOINT'` | `.env` missing or variable not set — check step 4 |
+| `KeyError: 'AZURE_OPENAI_ENDPOINT'` | `.env` missing or variable not set — see step 4 |
 | `401 Unauthorized` | Missing IAM role — see step 5 |
 | `DefaultAzureCredential failed` | Run `az login` first |
 | `404 DeploymentNotFound` | Deployment name mismatch — check **Models + endpoints** in the portal |
 | `ModuleNotFoundError` | Activate the venv: `source .venv/bin/activate` |
-
-## What's Next
-
-- **Chapter 2** — Agents with the Azure AI Projects SDK (uses `AZURE_AI_PROJECT_ENDPOINT`)
-- **Chapter 3** — Evaluations and model comparison
-- **Chapter 4** — Deploying and managing models programmatically (uses `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`)
+| Safety evaluators fail to init | Set `AZURE_AI_PROJECT_ENDPOINT` (the `/api/projects/` URL), not the OpenAI endpoint |
 
 ## Resources
 
-- [Azure AI Foundry documentation](https://learn.microsoft.com/azure/ai-foundry/)
+- [Microsoft Foundry documentation](https://learn.microsoft.com/azure/ai-foundry/)
+- [Develop generative AI apps on Microsoft Foundry (training path)](https://learn.microsoft.com/training/paths/develop-generative-ai-apps/)
+- [Local evaluation with the Azure AI Evaluation SDK](https://learn.microsoft.com/azure/ai-foundry/how-to/develop/evaluate-sdk)
+- [Observability in generative AI (evaluation concepts)](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-approach-gen-ai)
+- [Risk and safety evaluators](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-evaluators/risk-safety-evaluators)
 - [OpenAI SDK for Python](https://github.com/openai/openai-python)
 - [Azure Identity for Python](https://learn.microsoft.com/python/api/azure-identity/)
