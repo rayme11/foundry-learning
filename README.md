@@ -90,10 +90,19 @@ foundry-learning/
 ├── Chapter2-Tools/             # Ch. 2: File search tool with a vector store
 │   ├── setup_vector_store.py   #   one-time: upload PDF, create vector store
 │   └── ToolCalling_VectorDB.py #   interactive chat with file_search tool
-└── Chapter3-Evaluations/       # Ch. 3: Evaluations and model comparison
-    ├── eval_data.jsonl         #   test dataset (row 5 is wrong on purpose)
-    ├── run_evaluation.py       #   built-in evaluators via azure-ai-evaluation
-    └── compare_models.py       #   LLM-as-judge model A/B comparison
+├── Chapter3-Evaluations/       # Ch. 3: Evaluations and model comparison
+│   ├── eval_data.jsonl         #   test dataset (row 5 is wrong on purpose)
+│   ├── run_evaluation.py       #   built-in evaluators via azure-ai-evaluation
+│   └── compare_models.py       #   LLM-as-judge model A/B comparison
+├── Chapter4-ModelDeployment/   # Ch. 4: Programmatic model deployment
+│   └── DeployModels.py         #   deploy/manage models via SDK
+└── Chapter5-AgentService/      # Ch. 5: Agent Service development lifecycle
+    ├── README.md               #   lifecycle docs, Playground steps, diagrams
+    ├── agent_instructions.md   #   agent system prompt
+    ├── mcp_server.py           #   agent server with tracing & evaluation
+    ├── evaluators.py           #   custom evaluation hooks
+    ├── test_evaluators.py      #   unit tests for evaluators
+    └── requirements.txt        #   chapter-specific dependencies
 ```
 
 ## Chapter 3 — Evaluations
@@ -147,7 +156,10 @@ This gives you keyless auth via Entra ID — tokens refresh automatically.
 
 - **Chapter 4** — Deploying and managing models programmatically (uses `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`)
   - Run: `python Chapter4-ModelDeployment/DeployModels.py`
-- **Chapter 5** (future) — Additional advanced topics
+- **Chapter 5** — Agent Service development lifecycle with tracing, evaluation, and monitoring
+  - Run: `python Chapter5-AgentService/mcp_server.py`
+  - Requires: `PROJECT_ENDPOINT`, `AGENT_ID`, `APPLICATIONINSIGHTS_CONNECTION_STRING` in `.env`
+  - Tests: `pytest Chapter5-AgentService/test_evaluators.py -v`
 
 ## Resources
 
