@@ -42,7 +42,21 @@ graph LR
    - **Instructions**: See [agent_instructions.md](agent_instructions.md)
    - **Tools**: Enable **Code Interpreter**, **File Search**
      - *Note: Function Calling is not a UI toggle in Playground. Define functions via SDK/API (see [mcp_server.py](mcp_server.py) for custom tool definitions)*
-   - **Knowledge**: Add your data source (Azure AI Search index, blob storage, etc.)
+   - **Knowledge**: Add your data source:
+     - **Option A — File Search (easiest for Playground)**:
+       1. In Playground, click **Add files** under Knowledge
+       2. Upload PDF/MD/TXT files (e.g., HR policies, IT guidelines, API docs)
+       3. Files are automatically indexed for vector search
+     - **Option B — Azure AI Search Index (production)**:
+       1. Create an Azure AI Search resource
+       2. Create an index with your documents
+       3. In Playground, select **Azure AI Search** and connect your index
+     - **Option C — Blob Storage (for large datasets)**:
+       1. Upload documents to Azure Blob Storage container
+       2. Create an AI Search indexer pointing to the blob container
+       3. Connect the index in Playground
+
+   **For quick testing**: Use **Option A** — just drag & drop PDF/Markdown files directly in Playground.
 
 ### 2. Test in Playground
 
