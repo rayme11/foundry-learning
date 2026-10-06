@@ -40,7 +40,8 @@ graph LR
    - **Name**: `rag-chat-agent`
    - **Model**: `gpt-4o` (or your deployed model)
    - **Instructions**: See [agent_instructions.md](agent_instructions.md)
-   - **Tools**: Enable **Code Interpreter**, **File Search**, **Function Calling**
+   - **Tools**: Enable **Code Interpreter**, **File Search**
+     - *Note: Function Calling is not a UI toggle in Playground. Define functions via SDK/API (see [mcp_server.py](mcp_server.py) for custom tool definitions)*
    - **Knowledge**: Add your data source (Azure AI Search index, blob storage, etc.)
 
 ### 2. Test in Playground
