@@ -33,6 +33,34 @@ graph LR
 
 ### 1. Create Agent in Azure Playground
 
+**Important**: This chapter uses the **traditional Assistants API** (via `azure-ai-agents` SDK) which requires an `asst_` ID. The Playground's **Agents** tab creates new-style Agents (UUID IDs) which are incompatible.
+
+**To get an `asst_` ID, create an Assistant (not Agent) via Azure Portal:**
+
+1. Go to [Azure Portal](https://portal.azure.com/) → your **Azure AI Foundry resource**
+2. Navigate to **AI Foundry** → **Assistants** (or **Model catalog** → **Assistants**)
+3. Click **Create** → **Assistant**
+4. Configure:
+   - **Name**: `rag-chat-agent`
+   - **Model**: `gpt-4o` (or your deployed model)
+   - **Instructions**: Copy from [agent_instructions.md](agent_instructions.md)
+   - **Tools**: Enable **Code Interpreter**, **File Search**
+   - **Files**: Upload files from `sample_documents/` folder
+5. **Copy the Assistant ID** (format: `asst_AbCdEfGh1234...`)
+6. Add to `.env`: `AGENT_ID=asst_AbCdEfGh1234...`
+
+> **Alternative**: If Assistants isn't visible in Portal, use the REST API:
+> ```bash
+> # List assistants
+> az rest --method get --url "https://<resource>.services.ai.azure.com/api/projects/<project>/assistants?api-version=v1"
+> 
+> # Create assistant (POST with JSON body)
+> ```
+
+---
+
+### 1b. (Optional) Create Agent in Playground for Testing Only
+
 1. Navigate to [Azure AI Foundry Playground](https://ai.azure.com/)
 2. Create or select a project
 3. Go to **Agents** → **Create agent**
@@ -56,7 +84,7 @@ graph LR
        2. Create an AI Search indexer pointing to the blob container
        3. Connect the index in Playground
 
-   **For quick testing**: Use **Option A** — just drag & drop PDF/Markdown files directly in Playground.
+    **For quick testing**: Use **Option A** — just drag & drop PDF/Markdown files directly in Playground.
 
 > ✅ **Playground accepts `.md`, `.pdf`, `.txt`, `.docx` files directly** — no conversion needed!
 > Upload the files from `sample_documents/` folder:
