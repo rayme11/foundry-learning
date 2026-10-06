@@ -3,5 +3,8 @@ openai>=1.0.0
 azure-identity>=1.16.0
 azure-ai-projects>=1.0.0b10
 
+# Chapter 3: evaluations
+azure-ai-evaluation>=1.5.0
+
 # Environment variables
 python-dotenv>=1.0.0

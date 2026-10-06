@@ -40,6 +40,9 @@ Copy the values from your Foundry project into the root `.env` file:
 # Required by Chapter 1 script
 AZURE_OPENAI_ENDPOINT=https://<your-resource>.services.ai.azure.com/openai/v1
 AZURE_OPENAI_DEPLOYMENT_NAME=<your-deployment-name>
+
+# Optional: Chapter 3 model comparison (deploy a second model first)
+AZURE_OPENAI_DEPLOYMENT_NAME_2=<second-deployment-name>
 ```
 
 **Where to find these values:**
@@ -82,9 +85,31 @@ foundry-learning/
 ├── .gitignore
 ├── requirements.txt            # Python dependencies
 ├── README.md
-└── Chapter1-SimpleChatCall/    # Ch. 1: Basic chat completion via OpenAI SDK
-    └── SimpleChatCallAzure.py
+├── Chapter1-SimpleChatCall/    # Ch. 1: Basic chat completion via OpenAI SDK
+│   └── SimpleChatCallAzure.py
+├── Chapter2-Tools/             # Ch. 2: File search tool with a vector store
+│   ├── setup_vector_store.py   #   one-time: upload PDF, create vector store
+│   └── ToolCalling_VectorDB.py #   interactive chat with file_search tool
+└── Chapter3-Evaluations/       # Ch. 3: Evaluations and model comparison
+    ├── eval_data.jsonl         #   test dataset (row 5 is wrong on purpose)
+    ├── run_evaluation.py       #   built-in evaluators via azure-ai-evaluation
+    └── compare_models.py       #   LLM-as-judge model A/B comparison
 ```
+
+## Chapter 3 — Evaluations
+
+```bash
+pip install -r requirements.txt   # adds azure-ai-evaluation
+python Chapter3-Evaluations/run_evaluation.py      # quality metrics on a dataset
+python Chapter3-Evaluations/compare_models.py      # needs a 2nd deployment
+```
+
+`run_evaluation.py` scores each row of `eval_data.jsonl` with built-in
+evaluators (groundedness, relevance, coherence, fluency, similarity, F1)
+using your deployment as the judge, and writes `eval_results.json`.
+
+`compare_models.py` sends the same prompts to two deployments and has the
+primary model judge both answers — set `AZURE_OPENAI_DEPLOYMENT_NAME_2` first.
 
 ## How the Scripts Work
 
@@ -120,12 +145,23 @@ This gives you keyless auth via Entra ID — tokens refresh automatically.
 
 ## What's Next
 
-- **Chapter 2** — Agents with the Azure AI Projects SDK (uses `AZURE_AI_PROJECT_ENDPOINT`)
-- **Chapter 3** — Evaluations and model comparison
 - **Chapter 4** — Deploying and managing models programmatically (uses `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`)
+  - Run: `python Chapter4-ModelDeployment/DeployModels.py`
+- **Chapter 5** (future) — Additional advanced topics
 
 ## Resources
 
 - [Azure AI Foundry documentation](https://learn.microsoft.com/azure/ai-foundry/)
+- [Local evaluation with the Azure AI Evaluation SDK](https://learn.microsoft.com/azure/ai-foundry/how-to/develop/evaluate-sdk)
+- [Observability in generative AI (evaluation concepts)](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-approach-gen-ai)
+- [OpenAI SDK for Python](https://github.com/openai/openai-python)
+- [Azure Identity for Python](https://learn.microsoft.com/python/api/azure-identity/)
+- [Microsoft Learn: Azure AI Foundry campaigns](https://learn.microsoft.com/en-us/training/modules/prepare-deploy-models/)
+
+## Resources
+
+- [Azure AI Foundry documentation](https://learn.microsoft.com/azure/ai-foundry/)
+- [Local evaluation with the Azure AI Evaluation SDK](https://learn.microsoft.com/azure/ai-foundry/how-to/develop/evaluate-sdk)
+- [Observability in generative AI (evaluation concepts)](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-approach-gen-ai)
 - [OpenAI SDK for Python](https://github.com/openai/openai-python)
 - [Azure Identity for Python](https://learn.microsoft.com/python/api/azure-identity/)
