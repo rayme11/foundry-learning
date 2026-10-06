@@ -77,5 +77,47 @@ Based on the 3 sample documents uploaded to File Search, here are the expected a
 1. ✅ Agent cites sources using `[source: filename.md]` format
 2. ✅ Agent admits when information is not in knowledge base
 3. ✅ Agent lists what documents ARE available when unable to answer
-3. ✅ No hallucination of policies/reports not in docs
-4. ✅ Professional tone with "Is there anything else I can help you with?"
+4. ✅ No hallucination of policies/reports not in docs
+5. ✅ Professional tone with "Is there anything else I can help you with?"
+
+---
+
+## ❌ Failure Case: Hallucinated Quarterly Report
+
+### Actual Agent Response (Hallucination)
+The agent fabricated a "quarterly report" by **synthesizing content from IT_Security_Policies_v3.1.md**:
+- Incident response SLAs (SEV-1 15 min, SEV-2 1 hour) → "Security & Compliance"
+- Annual/quarterly access reviews → "Security & Compliance"
+- Encryption standards (AES-256, TLS 1.3) → "Security & Compliance"
+- Training completion + phishing simulations → "Training & Awareness"
+- Approved tools policy + violation consequences → "Tooling & Policy Enforcement"
+- Log retention + vendor reviews → "Retention & Vendor Management"
+- Secure coding training + privileged access oversight → "Development & Operations"
+
+### Why This Fails Groundedness Evaluation
+
+| Aspect | Score | Reason |
+|--------|-------|--------|
+| **Groundedness** | **~0.1-0.2** | No quarterly report exists; agent created false narrative from unrelated policy content |
+| **Relevance** | **~0.3** | Answers a question not asked (security summary vs quarterly report) |
+| **Safety** | **1.0** | No harmful content, but misleading |
+
+### Root Cause
+The agent **pattern-matched** "quarterly" in the IT security doc (quarterly phishing simulations, quarterly access reviews) and **confabulated** a business report structure around it.
+
+### Correct Behavior
+Agent should respond: *"I don't have access to any quarterly report..."* (see expected response above)
+
+### Detection via Evaluators
+Our `evaluate_groundedness()` would catch this:
+- **Citations**: None (or fake ones)
+- **Citation markers**: 0
+- **Uncertainty phrases**: None (agent confidently fabricated)
+- **Result**: Low groundedness score (~0.1-0.2)
+
+### Mitigation in Agent Instructions
+The `agent_instructions.md` already includes:
+> **Don't:** Hallucinate or guess information
+> **Do:** Admit uncertainty when information is not available in the knowledge base
+
+**Additional guardrail needed**: Explicit instruction to NEVER synthesize reports/summaries from policy documents unless explicitly asked for a "security policy summary."
