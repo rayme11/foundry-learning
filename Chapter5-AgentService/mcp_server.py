@@ -58,14 +58,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Load environment variables from root .env (walks up parent directories)
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
+
 # Load environment variables
-PROJECT_ENDPOINT = os.getenv("PROJECT_ENDPOINT")
+PROJECT_ENDPOINT = os.getenv("PROJECT_ENDPOINT") or os.getenv("AZURE_AI_PROJECT_ENDPOINT")
 AGENT_ID = os.getenv("AGENT_ID")
 APPLICATIONINSIGHTS_CONNECTION_STRING = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
 
 if not all([PROJECT_ENDPOINT, AGENT_ID, APPLICATIONINSIGHTS_CONNECTION_STRING]):
     raise ValueError(
-        "Missing required environment variables: PROJECT_ENDPOINT, AGENT_ID, APPLICATIONINSIGHTS_CONNECTION_STRING"
+        "Missing required environment variables in .env:\n"
+        "  PROJECT_ENDPOINT (or AZURE_AI_PROJECT_ENDPOINT)\n"
+        "  AGENT_ID\n"
+        "  APPLICATIONINSIGHTS_CONNECTION_STRING\n"
+        "See Chapter5-AgentService/README.md for where to find these values."
     )
 
 

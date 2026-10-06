@@ -72,19 +72,34 @@ graph LR
    - "Find documentation on API authentication"
    - "Summarize the quarterly report"
 3. Verify citations and grounding
-4. Export **Agent ID** for local integration
+4. **Copy Agent ID** for local integration:
+   - In Playground, click the agent name → **Copy ID** (format: `asst_...`)
+   - Add to `.env` as `AGENT_ID=asst_...`
 
 ### 3. Set Up Local Development
 
+**All configuration is in the root `.env` file** (same pattern as Chapters 1-4). The scripts auto-load it via `load_dotenv(find_dotenv())`.
+
 ```bash
 # Install dependencies
-pip install azure-ai-projects azure-identity opentelemetry-api opentelemetry-sdk opentelemetry-exporter-azuremonitor azure-monitor-opentelemetry
-
-# Set environment variables
-export PROJECT_ENDPOINT="https://<your-project>.services.ai.azure.com/api/projects/<project-name>"
-export AGENT_ID="<agent-id-from-playground>"
-export APPLICATIONINSIGHTS_CONNECTION_STRING="<from-application-insights>"
+pip install -r requirements.txt
 ```
+
+**Required `.env` variables for Chapter 5:**
+
+| Variable | Where to Find in Azure AI Foundry | Example |
+|----------|-----------------------------------|---------|
+| `PROJECT_ENDPOINT` (or `AZURE_AI_PROJECT_ENDPOINT`) | **Project → Overview → Endpoint** | `https://my-resource.services.ai.azure.com/api/projects/my-project` |
+| `AGENT_ID` | **Agents → Select Agent → Copy ID** (format: `asst_abc123...`) | `asst_AbCdEfGh1234...` |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | **Azure Portal → Application Insights → Overview → Connection String** | `InstrumentationKey=...;IngestionEndpoint=https://...` |
+
+**Optional (already in .env from other chapters):**
+| Variable | Where to Find |
+|----------|---------------|
+| `AZURE_OPENAI_ENDPOINT` | Project → Overview → Endpoint (OpenAI format) |
+| `AZURE_OPENAI_DEPLOYMENT_NAME` | Models + endpoints → Deployment name |
+
+> 💡 The `.env` file already contains `AZURE_AI_PROJECT_ENDPOINT` from earlier chapters. `PROJECT_ENDPOINT` falls back to it automatically.
 
 ### 4. Wire Local Code to Playground Agent
 
