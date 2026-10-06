@@ -6,7 +6,7 @@ Features:
 - End-to-end tracing with Application Insights
 - Custom evaluation hooks for quality measurement
 - OpenTelemetry instrumentation
-- Agent Service integration
+- Agent Service integration (using azure-ai-agents SDK)
 - Custom tool implementations
 """
 
@@ -16,12 +16,12 @@ import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from contextlib import asynccontextmanager
 
-# Azure AI Foundry SDK
-from azure.ai.projects import AIProjectClient
-from azure.ai.projects.models import (
+# Azure AI Foundry Agents SDK (traditional Assistant API)
+from azure.ai.agents import AgentsClient
+from azure.ai.agents.models import (
     Agent,
     AgentThread,
     MessageRole,
@@ -29,6 +29,8 @@ from azure.ai.projects.models import (
     CodeInterpreterTool,
     FileSearchTool,
     FunctionTool,
+    ThreadMessage,
+    ThreadRun,
 )
 from azure.identity import DefaultAzureCredential
 
@@ -203,7 +205,7 @@ class RAGChatAgent:
     """Main agent class integrating with Azure AI Foundry Agent Service"""
 
     def __init__(self):
-        self.project_client = AIProjectClient(
+        self.agents_client = AgentsClient(
             endpoint=PROJECT_ENDPOINT,
             credential=DefaultAzureCredential(),
         )
@@ -221,11 +223,11 @@ class RAGChatAgent:
         logger.info(f"Connecting to agent: {AGENT_ID}")
 
         # Get existing agent from Playground
-        self.agent = self.project_client.agents.get_agent(AGENT_ID)
+        self.agent = self.agents_client.get_agent(AGENT_ID)
         logger.info(f"Loaded agent: {self.agent.name} (ID: {self.agent.id})")
 
         # Create a new thread for this session
-        self.thread = self.project_client.agents.create_thread()
+        self.thread = self.agents_client.threads.create()
         logger.info(f"Created thread: {self.thread.id}")
 
     async def chat(self, user_message: str) -> AgentInteraction:
@@ -234,14 +236,14 @@ class RAGChatAgent:
 
         async with self.tracer.trace_agent_call("agent_chat", {"user_message": user_message[:100]}) as span:
             # Send user message
-            self.project_client.agents.create_message(
+            self.agents_client.messages.create(
                 thread_id=self.thread.id,
                 role=MessageRole.USER,
                 content=user_message,
             )
 
-            # Run the agent
-            run = self.project_client.agents.create_and_process_run(
+            # Run the agent (create and process in one call)
+            run = self.agents_client.create_thread_and_process_run(
                 thread_id=self.thread.id,
                 agent_id=self.agent.id,
             )
@@ -249,13 +251,13 @@ class RAGChatAgent:
             # Wait for completion
             while run.status in ["queued", "in_progress", "requires_action"]:
                 await asyncio.sleep(1)
-                run = self.project_client.agents.get_run(thread_id=self.thread.id, run_id=run.id)
+                run = self.agents_client.runs.get(thread_id=self.thread.id, run_id=run.id)
 
             if run.status == "failed":
                 raise RuntimeError(f"Agent run failed: {run.last_error}")
 
             # Get the assistant's response
-            messages = self.project_client.agents.list_messages(thread_id=self.thread.id)
+            messages = self.agents_client.messages.list(thread_id=self.thread.id)
             assistant_messages = [m for m in messages.data if m.role == MessageRole.ASSISTANT]
             latest_response = assistant_messages[0] if assistant_messages else None
 
@@ -294,7 +296,7 @@ class RAGChatAgent:
             span.set_attribute("interaction_id", len(self.evaluator.interactions))
             return interaction
 
-    def _extract_citations(self, message) -> List[str]:
+    def _extract_citations(self, message: ThreadMessage) -> List[str]:
         """Extract citation references from agent response"""
         citations = []
         if hasattr(message, 'content') and message.content:
@@ -307,7 +309,7 @@ class RAGChatAgent:
                             citations.append(annotation.file_path.file_id)
         return citations
 
-    def _extract_tools_used(self, run) -> List[str]:
+    def _extract_tools_used(self, run: ThreadRun) -> List[str]:
         """Extract tools used during the run"""
         tools = []
         if hasattr(run, 'required_action') and run.required_action:
@@ -319,9 +321,7 @@ class RAGChatAgent:
     async def close(self):
         """Clean up resources"""
         logger.info("Closing agent session")
-        if self.thread:
-            # Thread cleanup if needed
-            pass
+        # Thread cleanup if needed
 
 
 # Custom tool implementations
