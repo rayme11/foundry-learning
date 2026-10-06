@@ -58,6 +58,12 @@ graph LR
 
    **For quick testing**: Use **Option A** — just drag & drop PDF/Markdown files directly in Playground.
 
+> ✅ **Playground accepts `.md`, `.pdf`, `.txt`, `.docx` files directly** — no conversion needed!
+> Upload the files from `sample_documents/` folder:
+> - `HR_Employee_Handbook_2024.md` — Vacation, leave, benefits policies
+> - `IT_Security_Policies_v3.1.md` — Data classification, approved tools, incident response
+> - `API_Documentation_v2.3.md` — Internal REST/gRPC APIs, auth, rate limits
+
 ### 2. Test in Playground
 
 1. Open the agent in **Playground**
