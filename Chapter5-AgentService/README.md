@@ -179,9 +179,13 @@ python mcp_server.py
 
 | File | Description |
 |------|-------------|
-| `mcp_server.py` | Main agent server with tracing and evaluation |
-| `agent_instructions.md` | System prompt for the agent |
-| `evaluators.py` | Custom evaluation functions |
+| `mcp_server.py` | Azure-connected agent server (requires Azure setup) |
+| `local_mcp_server.py` | **Local-only agent server (no Azure, uses Ollama + ChromaDB)** |
+| `agent_instructions.md` | System prompt for the agent (shared) |
+| `evaluators.py` | Custom evaluation functions (shared) |
+| `requirements.txt` | Azure version dependencies |
+| `requirements_local.txt` | Local version dependencies |
+| `sample_documents/` | Knowledge base files (shared) |
 | `tools/` | Custom tool implementations |
 | `tests/` | Unit and integration tests |
 
@@ -193,3 +197,128 @@ python mcp_server.py
 2. **Set up CI/CD**: GitHub Actions for automated testing
 3. **Configure alerts**: Latency, error rate, groundedness thresholds
 4. **Continuous evaluation**: Scheduled batch evaluations
+
+---
+
+## 🏠 Local Development: Run Everything Offline (No Azure)
+
+Since the Azure Agent Service SDK is in transition and the traditional Assistants API is retired, you can run a **fully local version** that mimics the Azure architecture. This lets you develop, test, and evaluate agents without Azure costs or connectivity.
+
+### Local Architecture Correlation
+
+| Azure AI Foundry Component | Local Equivalent (`local_mcp_server.py`) | Why It Matters |
+|---------------------------|------------------------------------------|----------------|
+| **Azure OpenAI / Model Deployment** | **Ollama** (local LLM: `llama3.2`, `mistral`, etc.) | Run models locally, no API costs, full privacy |
+| **AI Search / Vector Store** | **ChromaDB** (local vector database) | Persistent local embeddings, same RAG pattern |
+| **Agent Service (Playground Agent)** | **LocalRAGChatAgent** class | Same interface: `chat()`, citations, tools |
+| **Application Insights** | **LocalTracer** (JSONL file + console) | Same span structure, works offline |
+| **Azure AI Evaluation SDK** | **evaluators.py** (identical) | Exact same groundedness/relevance/safety metrics |
+| **Agent Instructions** | **agent_instructions.md** (identical) | Portable system prompt |
+| **Sample Documents** | **sample_documents/** (identical) | Same knowledge base |
+| **Custom Tools** | **custom_functions** (identical) | Same function calling pattern |
+
+### Why This Architecture?
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AZURE (Production)                           │
+├─────────────────────────────────────────────────────────────────┤
+│  Playground Agent → AI Search → OpenAI Model → App Insights    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ (Same patterns, local alternatives)
+┌─────────────────────────────────────────────────────────────────┐
+│                    LOCAL (Development)                          │
+├─────────────────────────────────────────────────────────────────┤
+│  LocalRAGChatAgent → ChromaDB → Ollama Model → JSONL Traces    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Benefits of Local-First Development:**
+- ✅ **Zero Azure costs** during development
+- ✅ **No network dependency** - works offline/airplane mode
+- ✅ **Instant iteration** - no deployment waits
+- ✅ **Full privacy** - data never leaves machine
+- ✅ **Same evaluation** - groundedness/relevance/safety metrics identical
+- ✅ **Portable skills** - patterns transfer directly to Azure
+
+### Quick Start: Local MCP Server
+
+```bash
+# 1. Install Ollama (one-time)
+# macOS: brew install ollama
+# Linux: curl -fsSL https://ollama.ai/install.sh | sh
+# Windows: Download from ollama.ai
+
+# 2. Start Ollama and pull a model
+ollama serve &
+ollama pull llama3.2
+
+# 3. Install Python dependencies
+pip install -r requirements_local.txt
+
+# 4. Run local server
+python local_mcp_server.py
+```
+
+### Local Requirements (`requirements_local.txt`)
+
+```text
+# Local LLM & Vector DB
+ollama>=0.6.3
+chromadb>=1.5.9
+sentence-transformers>=2.2.0
+
+# Shared with Azure version
+python-dotenv>=1.0.0
+
+# Evaluation (same as Azure)
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+```
+
+### What Works Locally vs Azure
+
+| Feature | Local | Azure |
+|---------|-------|-------|
+| Chat with citations | ✅ | ✅ |
+| Vector search (RAG) | ✅ | ✅ |
+| Groundedness evaluation | ✅ | ✅ |
+| Relevance evaluation | ✅ | ✅ |
+| Safety evaluation | ✅ | ✅ |
+| Custom tools (functions) | ✅ | ✅ |
+| Tracing/observability | ✅ (JSONL) | ✅ (App Insights) |
+| File Search tool | ✅ (ChromaDB) | ✅ (AI Search) |
+| Code Interpreter | ❌ (use functions) | ✅ |
+| Managed scaling | ❌ | ✅ |
+| Enterprise auth | ❌ | ✅ |
+| Production monitoring | ❌ | ✅ |
+
+### Migration Path: Local → Azure
+
+When ready for production, the migration is straightforward:
+
+1. **Swap model client**: Ollama → Azure OpenAI / Model Deployment
+2. **Swap vector store**: ChromaDB → Azure AI Search
+3. **Swap tracing**: JSONL → Application Insights
+4. **Keep everything else**: Same agent class, same evaluations, same tools, same instructions
+
+The `local_mcp_server.py` and `mcp_server.py` share the **exact same**:
+- `AgentInteraction` dataclass
+- `EvaluationHooks` / `LocalEvaluationHooks` (same logic)
+- `evaluators.py` (identical)
+- `agent_instructions.md` (identical)
+- `custom_functions` (identical)
+
+### Test Queries (Same as Azure Playground)
+
+```bash
+You: What is the refund policy?
+You: Find documentation on API authentication
+You: Summarize the quarterly report
+```
+
+Expected behavior mirrors Azure:
+- **Refund policy** → Admits uncertainty (not in docs)
+- **API authentication** → Cites `API_Documentation_v2.3.md`
+- **Quarterly report** → Admits uncertainty, lists available docs
