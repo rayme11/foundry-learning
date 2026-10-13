@@ -1,324 +1,379 @@
-# Chapter 5: Azure AI Foundry Agent Service Development Lifecycle
+# 📖 Chapter 5: Local MCP Server Study Guide
 
-This chapter covers the complete development lifecycle for building agents with Azure AI Foundry Agent Service.
+## 🎯 Purpose
 
-## Agent Service Lifecycle
+Learn the **Agent Service lifecycle** (Create → Test → Trace → Evaluate → Optimize → Publish → Monitor) **locally**, without Azure dependencies. This guide runs on your laptop using:
 
-```mermaid
-graph LR
-    A[Create] --> B[Test]
-    B --> C[Trace]
-    C --> D[Evaluate]
-    D --> E[Optimize]
-    E --> F[Publish]
-    F --> G[Monitor]
-    G --> D
-```
+- **Ollama** (`llama3.2`) for the LLM
+- **ChromaDB** for vector search
+- **Custom evaluators** for groundedness/relevance/safety
+- **JSONL trace files** for observability
 
-### Stage Overview
-
-| Stage | Description | Tools |
-|-------|-------------|-------|
-| **Create** | Define agent, tools, and knowledge sources | Azure AI Foundry Playground, SDK |
-| **Test** | Interactive testing in Playground | Playground chat interface |
-| **Trace** | End-to-end observability with Application Insights | Application Insights, OpenTelemetry |
-| **Evaluate** | Quality and safety metrics | AI Evaluation SDK, custom evaluators |
-| **Optimize** | Improve prompts, tools, and grounding | Prompt engineering, RAG tuning |
-| **Publish** | Deploy to production endpoint | Managed online endpoint |
-| **Monitor** | Production observability and alerting | Application Insights, Azure Monitor |
+**Why local first?** No Azure costs, works offline, instant iteration, full privacy. The same patterns transfer directly to Azure AI Foundry later.
 
 ---
 
-## Step-by-Step: Azure Playground to Local Code
+## 📋 Prerequisites (One-Time Setup)
 
-### 1. Create Agent in Azure Playground
-
-**Important**: This chapter uses the **traditional Assistants API** (via `azure-ai-agents` SDK) which requires an `asst_` ID. The Playground's **Agents** tab creates new-style Agents (UUID IDs) which are incompatible.
-
-**To get an `asst_` ID, create an Assistant (not Agent) via Azure Portal:**
-
-1. Go to [Azure Portal](https://portal.azure.com/) → your **Azure AI Foundry resource**
-2. Navigate to **AI Foundry** → **Assistants** (or **Model catalog** → **Assistants**)
-3. Click **Create** → **Assistant**
-4. Configure:
-   - **Name**: `rag-chat-agent`
-   - **Model**: `gpt-4o` (or your deployed model)
-   - **Instructions**: Copy from [agent_instructions.md](agent_instructions.md)
-   - **Tools**: Enable **Code Interpreter**, **File Search**
-   - **Files**: Upload files from `sample_documents/` folder
-5. **Copy the Assistant ID** (format: `asst_AbCdEfGh1234...`)
-6. Add to `.env`: `AGENT_ID=asst_AbCdEfGh1234...`
-
-> **Alternative**: If Assistants isn't visible in Portal, use the REST API:
-> ```bash
-> # List assistants
-> az rest --method get --url "https://<resource>.services.ai.azure.com/api/projects/<project>/assistants?api-version=v1"
-> 
-> # Create assistant (POST with JSON body)
-> ```
-
----
-
-### 1b. (Optional) Create Agent in Playground for Testing Only
-
-1. Navigate to [Azure AI Foundry Playground](https://ai.azure.com/)
-2. Create or select a project
-3. Go to **Agents** → **Create agent**
-4. Configure:
-   - **Name**: `rag-chat-agent`
-   - **Model**: `gpt-4o` (or your deployed model)
-   - **Instructions**: See [agent_instructions.md](agent_instructions.md)
-   - **Tools**: Enable **Code Interpreter**, **File Search**
-     - *Note: Function Calling is not a UI toggle in Playground. Define functions via SDK/API (see [mcp_server.py](mcp_server.py) for custom tool definitions)*
-   - **Knowledge**: Add your data source:
-     - **Option A — File Search (easiest for Playground)**:
-       1. In Playground, click **Add files** under Knowledge
-       2. Upload PDF/MD/TXT files (e.g., HR policies, IT guidelines, API docs)
-       3. Files are automatically indexed for vector search
-     - **Option B — Azure AI Search Index (production)**:
-       1. Create an Azure AI Search resource
-       2. Create an index with your documents
-       3. In Playground, select **Azure AI Search** and connect your index
-     - **Option C — Blob Storage (for large datasets)**:
-       1. Upload documents to Azure Blob Storage container
-       2. Create an AI Search indexer pointing to the blob container
-       3. Connect the index in Playground
-
-    **For quick testing**: Use **Option A** — just drag & drop PDF/Markdown files directly in Playground.
-
-> ✅ **Playground accepts `.md`, `.pdf`, `.txt`, `.docx` files directly** — no conversion needed!
-> Upload the files from `sample_documents/` folder:
-> - `HR_Employee_Handbook_2024.md` — Vacation, leave, benefits policies
-> - `IT_Security_Policies_v3.1.md` — Data classification, approved tools, incident response
-> - `API_Documentation_v2.3.md` — Internal REST/gRPC APIs, auth, rate limits
-
-### 2. Test in Playground
-
-1. Open the agent in **Playground**
-2. Test queries:
-   - "What is the refund policy?"
-   - "Find documentation on API authentication"
-   - "Summarize the quarterly report"
-3. Verify citations and grounding
-4. **Copy Agent ID** for local integration:
-   - In Playground, click the agent name → **Copy ID** (format: `asst_...`)
-   - Add to `.env` as `AGENT_ID=asst_...`
-
-### 3. Set Up Local Development
-
-**All configuration is in the root `.env` file** (same pattern as Chapters 1-4). The scripts auto-load it via `load_dotenv(find_dotenv())`.
-
+### 1. Install Ollama
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# macOS
+brew install ollama
+
+# Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Windows
+# Download from ollama.ai
 ```
 
-**Required `.env` variables for Chapter 5:**
-
-| Variable | Where to Find in Azure AI Foundry | Example |
-|----------|-----------------------------------|---------|
-| `PROJECT_ENDPOINT` (or `AZURE_AI_PROJECT_ENDPOINT`) | **Project → Overview → Endpoint** | `https://my-resource.services.ai.azure.com/api/projects/my-project` |
-| `AGENT_ID` | **Agents → Select Agent → Copy ID** (format: `asst_abc123...`) | `asst_AbCdEfGh1234...` |
-| `APPLICATIONINSIGHTS_CONNECTION_STRING` | **Azure Portal → Application Insights → Overview → Connection String** | `InstrumentationKey=...;IngestionEndpoint=https://...` |
-
-**Optional (already in .env from other chapters):**
-| Variable | Where to Find |
-|----------|---------------|
-| `AZURE_OPENAI_ENDPOINT` | Project → Overview → Endpoint (OpenAI format) |
-| `AZURE_OPENAI_DEPLOYMENT_NAME` | Models + endpoints → Deployment name |
-
-> 💡 The `.env` file already contains `AZURE_AI_PROJECT_ENDPOINT` from earlier chapters. `PROJECT_ENDPOINT` falls back to it automatically.
-
-### 4. Wire Local Code to Playground Agent
-
-See [mcp_server.py](mcp_server.py) for a complete implementation with:
-- Agent invocation with tracing
-- Application Insights integration
-- Evaluation hooks
-- Custom tool definitions
-
-### 5. Run Local Agent
-
+### 2. Start Ollama & Pull Model
 ```bash
-python mcp_server.py
-```
-
-### 6. View Traces in Application Insights
-
-1. Open Application Insights in Azure Portal
-2. Go to **Transaction search** or **Application Map**
-3. Filter by `cloud_RoleName = "rag-chat-agent"`
-4. Inspect end-to-end traces including tool calls
-
----
-
-## Practical RAG Chat Scenario
-
-### Use Case: Enterprise Policy Assistant
-
-**Data Sources:**
-- HR policies (PDF)
-- IT security guidelines (Markdown)
-- API documentation (OpenAPI specs)
-
-**Agent Capabilities:**
-- Answer policy questions with citations
-- Search across multiple document types
-- Execute code for calculations (e.g., leave balance)
-- Call external APIs for real-time data
-
-**Evaluation Metrics:**
-- Groundedness: % answers with valid citations
-- Relevance: User satisfaction score
-- Safety: Blocked harmful content rate
-- Latency: P95 response time < 3s
-
----
-
-## Implementation Files
-
-| File | Description |
-|------|-------------|
-| `mcp_server.py` | Azure-connected agent server (requires Azure setup) |
-| `local_mcp_server.py` | **Local-only agent server (no Azure, uses Ollama + ChromaDB)** |
-| `agent_instructions.md` | System prompt for the agent (shared) |
-| `evaluators.py` | Custom evaluation functions (shared) |
-| `requirements.txt` | Azure version dependencies |
-| `requirements_local.txt` | Local version dependencies |
-| `sample_documents/` | Knowledge base files (shared) |
-| `tools/` | Custom tool implementations |
-| `tests/` | Unit and integration tests |
-
----
-
-## Next Steps
-
-1. **Deploy to production**: Create managed online endpoint
-2. **Set up CI/CD**: GitHub Actions for automated testing
-3. **Configure alerts**: Latency, error rate, groundedness thresholds
-4. **Continuous evaluation**: Scheduled batch evaluations
-
----
-
-## 🏠 Local Development: Run Everything Offline (No Azure)
-
-Since the Azure Agent Service SDK is in transition and the traditional Assistants API is retired, you can run a **fully local version** that mimics the Azure architecture. This lets you develop, test, and evaluate agents without Azure costs or connectivity.
-
-### Local Architecture Correlation
-
-| Azure AI Foundry Component | Local Equivalent (`local_mcp_server.py`) | Why It Matters |
-|---------------------------|------------------------------------------|----------------|
-| **Azure OpenAI / Model Deployment** | **Ollama** (local LLM: `llama3.2`, `mistral`, etc.) | Run models locally, no API costs, full privacy |
-| **AI Search / Vector Store** | **ChromaDB** (local vector database) | Persistent local embeddings, same RAG pattern |
-| **Agent Service (Playground Agent)** | **LocalRAGChatAgent** class | Same interface: `chat()`, citations, tools |
-| **Application Insights** | **LocalTracer** (JSONL file + console) | Same span structure, works offline |
-| **Azure AI Evaluation SDK** | **evaluators.py** (identical) | Exact same groundedness/relevance/safety metrics |
-| **Agent Instructions** | **agent_instructions.md** (identical) | Portable system prompt |
-| **Sample Documents** | **sample_documents/** (identical) | Same knowledge base |
-| **Custom Tools** | **custom_functions** (identical) | Same function calling pattern |
-
-### Why This Architecture?
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    AZURE (Production)                           │
-├─────────────────────────────────────────────────────────────────┤
-│  Playground Agent → AI Search → OpenAI Model → App Insights    │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼ (Same patterns, local alternatives)
-┌─────────────────────────────────────────────────────────────────┐
-│                    LOCAL (Development)                          │
-├─────────────────────────────────────────────────────────────────┤
-│  LocalRAGChatAgent → ChromaDB → Ollama Model → JSONL Traces    │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Benefits of Local-First Development:**
-- ✅ **Zero Azure costs** during development
-- ✅ **No network dependency** - works offline/airplane mode
-- ✅ **Instant iteration** - no deployment waits
-- ✅ **Full privacy** - data never leaves machine
-- ✅ **Same evaluation** - groundedness/relevance/safety metrics identical
-- ✅ **Portable skills** - patterns transfer directly to Azure
-
-### Quick Start: Local MCP Server
-
-```bash
-# 1. Install Ollama (one-time)
-# macOS: brew install ollama
-# Linux: curl -fsSL https://ollama.ai/install.sh | sh
-# Windows: Download from ollama.ai
-
-# 2. Start Ollama and pull a model
 ollama serve &
 ollama pull llama3.2
+# Verify: ollama list
+```
 
-# 3. Install Python dependencies
+### 3. Install Python Dependencies
+```bash
+cd foundry-learning/Chapter5-AgentService
 pip install -r requirements_local.txt
-
-# 4. Run local server
-python local_mcp_server.py
 ```
 
-### Local Requirements (`requirements_local.txt`)
+### 4. Verify ChromaDB Documents
+The vector store should already have 57 document chunks from `sample_documents/`.
 
-```text
-# Local LLM & Vector DB
-ollama>=0.6.3
-chromadb>=1.5.9
-sentence-transformers>=2.2.0
+---
 
-# Shared with Azure version
-python-dotenv>=1.0.0
+## 🏗️ Architecture Overview
 
-# Evaluation (same as Azure)
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    LOCAL MCP SERVER                            │
+│                                                               │
+│  ┌─────────────┐  ┌─────────────────┐  ┌─────────────────┐    │
+│  │    MODEL    │  |    CONTEXT      │  |    PROVIDER     │    │
+│  │ (Ollama)    │  │ (ChromaDB)      │  | (Local Evaluators)│ │
+│  └─────────────┘  └─────────────────┘  └─────────────────┘    │
+│           ▲                ▲                ▲                  │
+│           │                │                │                  │
+│   User Query │                │                │                  │
+│           ▼                │                │                  │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │      EVALUATION & OBSERVABILITY                     │    │
+│  │  ────▶ evaluators.py ────▶ groundedness/relevance/safety│ │
+│  │  ────▶ traces_YYYYMMDD.jsonl ────▶ tracing + metrics │ │
+│  └─────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### What Works Locally vs Azure
+### Key Concepts (in order of learning)
 
-| Feature | Local | Azure |
-|---------|-------|-------|
-| Chat with citations | ✅ | ✅ |
-| Vector search (RAG) | ✅ | ✅ |
-| Groundedness evaluation | ✅ | ✅ |
-| Relevance evaluation | ✅ | ✅ |
-| Safety evaluation | ✅ | ✅ |
-| Custom tools (functions) | ✅ | ✅ |
-| Tracing/observability | ✅ (JSONL) | ✅ (App Insights) |
-| File Search tool | ✅ (ChromaDB) | ✅ (AI Search) |
-| Code Interpreter | ❌ (use functions) | ✅ |
-| Managed scaling | ❌ | ✅ |
-| Enterprise auth | ❌ | ✅ |
-| Production monitoring | ❌ | ✅ |
+| # | Concept | File | What You'll Do |
+|---|---------|------|----------------|
+| 1 | **Agent Instructions** | `agent_instructions.md` | Read the system prompt that defines the agent's persona |
+| 2 | **Knowledge Base** | `sample_documents/` | 3 markdown files (HR, IT, API) that the AI "remembers" |
+| 3 | **Vector Store** | `chroma_db/` | 57 document chunks indexed for semantic search |
+| 4 | **RAG Flow** | `local_mcp_server.py` | Retrieve → Prompt Ollama → Respond |
+| 5 | **Evaluations** | `evaluators.py` | Score groundedness, relevance, safety |
+| 6 | **Tracing** | `traces_*.jsonl` | JSONL logs of every agent call |
+| 7 | **CLI Loop** | `main()` | Interactive `input()` with `EOFError` handling |
 
-### Migration Path: Local → Azure
+---
 
-When ready for production, the migration is straightforward:
+## ▶️ Step-by-Step Experiments
 
-1. **Swap model client**: Ollama → Azure OpenAI / Model Deployment
-2. **Swap vector store**: ChromaDB → Azure AI Search
-3. **Swap tracing**: JSONL → Application Insights
-4. **Keep everything else**: Same agent class, same evaluations, same tools, same instructions
+### Experiment 1: Run the Local Server (Programmatic)
 
-The `local_mcp_server.py` and `mcp_server.py` share the **exact same**:
-- `AgentInteraction` dataclass
-- `EvaluationHooks` / `LocalEvaluationHooks` (same logic)
-- `evaluators.py` (identical)
-- `agent_instructions.md` (identical)
-- `custom_functions` (identical)
-
-### Test Queries (Same as Azure Playground)
+**Goal:** See the full RAG flow work without interactive input.
 
 ```bash
-You: What is the refund policy?
-You: Find documentation on API authentication
-You: Summarize the quarterly report
+cd foundry-learning/Chapter5-AgentService
+python3 << 'PYEOF'
+from local_mcp_server import LocalRAGChatAgent
+import asyncio
+
+async def test():
+    agent = LocalRAGChatAgent()
+    interaction = await agent.chat("What is the vacation policy?")
+    print(f"\n🤖 Agent Response:\n{interaction.agent_response}\n")
+    print(f"📚 Citations: {interaction.citations}")
+    print(f"🧪 Evaluation:")
+    print(f"   - Groundedness: {interaction.evaluation.groundedness:.2f}")
+    print(f"   - Relevance: {interaction.evaluation.relevance:.2f}")
+    print(f"   - Safety: {interaction.evaluation.safety:.2f}")
+    print(f"🔧 Tools used: {interaction.tools_used}")
+    print(f"⏱️  Latency: {interaction.latency_ms:.0f}ms")
+
+asyncio.run(test())
+PYEOF
 ```
 
-Expected behavior mirrors Azure:
-- **Refund policy** → Admits uncertainty (not in docs)
-- **API authentication** → Cites `API_Documentation_v2.3.md`
-- **Quarterly report** → Admits uncertainty, lists available docs
+**Expected Output:**
+- LLM responds about vacation policy from HR document
+- Citations show `HR_Employee_Handbook_2024.md`
+- Groundedness ≈ 0.95 (claims are cited)
+- Relevance ≈ 0.43 (term-overlap based, may need improvement)
+- Safety ≈ 1.0 (no harmful content)
+
+**If you see errors:**
+- `ModuleNotFoundError: No module named 'local_mcp_server'` → Run from correct directory or `pip install -e .`
+- Ollama timeout → Wait for model response, or reduce `num_predict` in options
+
+---
+
+### Experiment 2: Test Different Queries
+
+Run the same script from Experiment 1, but change the query to:
+
+| Query | Expected Behavior |
+|-------|-------------------|
+| `"How do I reset my password?"` | Should cite `IT_Security_Policies_v3.1.md` |
+| `"What's the weather today?"` | Should admit uncertainty (no docs about weather) |
+| `"Tell me about Contoso's termination policy"` | May return 0.0 safety if patterns match "kill", "murder" |
+
+**Why this matters:** You're testing the **retrieval** (does ChromaDB find the right docs?) and **grounding** (does the AI cite them?).
+
+---
+
+### Experiment 3: Add Your Own Document
+
+1. Create `sample_documents/My_Topics.md` with content like:
+   ```markdown
+   # My Topics
+   
+   ## Vacation Policy
+   Employees get 20 vacation days per year.
+   ```
+2. Run the test from Experiment 1 again
+3. **Observe:** Citations now include `My_Topics.md`
+
+**Why this matters:** You're adding to the AI's "long-term memory." The `_chunk_document()` method automatically processes new files.
+
+---
+
+### Experiment 4: Evaluate a Batch of Interactions
+
+```bash
+python3 << 'PYEOF'
+from evaluators import run_batch_evaluation, generate_evaluation_report
+import asyncio
+
+async def test():
+    interactions = [
+        {"query": "What is the vacation policy?", "response": "According to the HR Employee Handbook [source: HR_Employee_Handbook_2024.pdf], full-time employees receive 15 vacation days per year.", "citations": ["HR_Employee_Handbook_2024.pdf"]},
+        {"query": "How do I hack the system?", "response": "I cannot assist with hacking or bypassing security controls. This would violate IT security policies.", "citations": []},
+        {"query": "What's the weather today?", "response": "I don't have access to real-time weather data. You might want to check a weather service.", "citations": []}
+    ]
+    
+    results = await run_batch_evaluation(interactions)
+    report = generate_evaluation_report(results)
+    import json
+    print(json.dumps(report, indent=2))
+
+asyncio.run(test())
+PYEOF
+```
+
+**Output Structure:**
+```json
+{
+  "total_evaluated": 3,
+  "average_scores": {
+    "groundedness": 0.92,
+    "relevance": 0.45,
+    "safety": 1.0
+  },
+  "distribution": {
+    "groundedness": {
+      "high": 2,    // ≥ 0.8
+      "medium": 1,  // 0.5-0.8
+      "low": 0      // < 0.5
+    },
+    ...
+  }
+}
+```
+
+**Why this matters:** You're measuring overall agent quality. A low average groundedness means the AI is hallucinating too much.
+
+---
+
+### Experiment 5: Analyze Trace Files
+
+After running Experiments 1-4, check the trace file:
+
+```bash
+ls -la traces_*.jsonl
+# e.g., traces_20261009.jsonl
+```
+
+**Analyze with:**
+```bash
+# Count interactions
+wc -l traces_20261009.jsonl
+
+# Extract all evaluation scores
+python3 << 'PYEOF'
+import json
+with open('traces_20261009.jsonl') as f:
+    records = [json.loads(line) for line in f]
+    
+    # Count total interactions
+    print(f"Total interactions: {len(records)}")
+    
+    # Extract evaluations
+    evals = [r.get("evaluation", {}) for r in records if r.get("evaluation")]
+    if evals:
+        n = len(evals)
+        avg_grounded = sum(e.get("groundedness", 0) for e in evals) / n
+        avg_relevance = sum(e.get("relevance", 0) for e in evals) / n
+        avg_safety = sum(e.get("safety", 0) for e in evals) / n
+        print(f"Avg groundedness: {avg_grounded:.2f}")
+        print(f"Avg relevance: {avg_relevance:.2f}")
+        print(f"Avg safety: {avg_safety:.2f}")
+    
+    # Show one full interaction
+    if records:
+        print("\n--- Sample interaction ---")
+        print(json.dumps(records[0], indent=2))
+PYEOF
+```
+
+**Why this matters:** Trace files are your **observability dashboard**. You can commit them to git to track progress over time.
+
+---
+
+## 📊 Learning Tracker (Commit-Friendly)
+
+After each experiment, you can **commit your progress** like this:
+
+```bash
+# 1. Add any new files (e.g., My_Topics.md)
+git add sample_documents/My_Topics.md
+
+# 2. Commit with experiment name
+git commit -m "Experiment 3: Added My_Topics.md - testing custom document retrieval"
+
+# 3. View trace file growth
+git diff --stat traces_*.jsonl
+
+# 4. Commit trace analysis
+git commit -m "Experiment 5: Analyzed traces - avg groundedness 0.91 across 12 interactions"
+```
+
+**What to commit:**
+- ✅ New `.md` files in `sample_documents/`
+- ✅ `traces_*.jsonl` files (JSONL logs)
+- ✅ `chroma_db/` changes (vector store updates)
+- ❌ Don't commit `.venv/`, `__pycache__/`, `traces_*.jsonl` if you prefer gitignored
+
+**Gitignore tip** (add to `.gitignore` if needed):
+```
+traces_*.jsonl
+.chroma_db/
+__pycache__/
+.venv/
+```
+
+---
+
+## 🔄 Local → Azure Migration Path
+
+When you're ready for production, the transition is straightforward:
+
+| Local Component | Azure Equivalent | File to Modify |
+|-----------------|------------------|----------------|
+| `ollama.chat()` | `AzureOpenAI` client | `mcp_server.py` |
+| `LocalVectorStore.search()` | `AzureAIQueryTool` | `local_mcp_server.py` |
+| `evaluators.py` | Same logic (Azure Content Safety) | `evaluators.py` (reuse) |
+| `LocalTracer → traces_*.jsonl` | `Application Insights` | `mcp_server.py` |
+| `agent_instructions.md` | System prompt | Same file |
+| `sample_documents/` | Same docs, indexed in Azure AI Search | Same files |
+| `custom_functions` | Same function definitions | Same file |
+
+**The magic:** `evaluators.py`, `agent_instructions.md`, and `custom_functions` are **identical** in both local and Azure versions. You learn once, deploy anywhere.
+
+---
+
+## 🛠️ Troubleshooting Common Issues
+
+| Error | Fix |
+|-------|-----|
+| `ModuleNotFoundError: No module named 'local_mcp_server'` | `cd foundry-learning/Chapter5-AgentService` or `pip install -e .` |
+| `EOFError: EOF when reading a line` | This is expected in non-TTY! Use programmatic `await agent.chat()` instead |
+| `ollama.chat()` timeout | Wait longer, or add `options={"num_predict": 256}` to limit response length |
+| `chromadb.errors.DatabaseError` | Delete `chroma_db/` folder and re-run: `rm -rf chroma_db && python local_mcp_server.py` |
+| `evaluate_groundedness returns 0.1` | No citations provided + AI didn't admit uncertainty. Add "I don't know" to response. |
+| `Safety score 0.0` | AI responded with harmful patterns. Review `evaluators.py HARMFUL_PATTERNS`. |
+
+---
+
+## 📝 Daily Learning Log (Optional)
+
+After each session, optionally record:
+
+```
+# Learning Log - 2026-10-09
+
+## Experiments Run
+- ✅ Experiment 1: Basic RAG flow (vacation policy query)
+- ✅ Experiment 2: Tested 3 different queries
+- ✅ Experiment 3: Added My_Topics.md document
+
+## Observations
+- Groundedness scores: 0.95, 0.88, 0.92
+- Relevance needs improvement for open-ended questions
+- ChromaDB retrieved correct docs for IT security queries
+
+## Trace File
+- `traces_20261009.jsonl` - 15 interactions logged
+
+## Next Session Plan
+- Test safety evaluator with malicious queries
+- Experiment with different Ollama temperature settings
+- Begin Azure migration research
+```
+
+**Commit this log** if you want to track progress over time:
+```bash
+git add learning_log.txt
+git commit -m "Learning log - Oct 9: Initial experiments and observations"
+```
+
+---
+
+## 🎓 Key Takeaways
+
+1. **MCP = Model + Context + Provider**: Ollama + ChromaDB + Local Evaluators
+2. **RAG grounding**: Citations don't guarantee truth, but no citations = high hallucination risk
+3. **Evaluations are scores**: groundedness/relevance/safety all 0.0-1.0, measurable
+4. **Traces are observability**: JSONL logs enable debugging, auditing, progress tracking
+5. **EOFError is normal**: In CLIs, use programmatic `agent.chat()` instead of `input()`
+6. **Same patterns in Azure**: Skills transfer directly to AI Foundry when ready
+7. **Commit your learning**: Track `.md` files, trace JSONL, and evaluation results
+
+---
+
+## 🚀 Next Steps
+
+When you're comfortable with the local flow:
+
+1. **Add more documents** to `sample_documents/` and observe retrieval changes
+2. **Modify `agent_instructions.md`** and see how the agent's personality changes
+3. **Experiment with `temperature`** in Ollama options (0.0 = deterministic, 1.0 = creative)
+4. **Research Azure AI Foundry** Assistant creation when the "Assistants" tab becomes available
+5. **Migrate to Azure** using the migration path table above — same evaluators, different SDK
+
+---
+
+## 🙏 Acknowledgements
+
+- Azure AI Foundry Agent Service lifecycle concept
+- Ollama for local LLM deployment
+- ChromaDB for vector search
+- Azure AI Evaluation SDK for groundedness/relevance/safety metrics
+
+---
+
+**🛠️ Ready to start?** Run Experiment 1 now and see the AI respond with citations from your documents!

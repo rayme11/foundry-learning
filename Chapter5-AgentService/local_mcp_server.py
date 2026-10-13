@@ -21,7 +21,6 @@ from contextlib import asynccontextmanager
 
 # Local dependencies
 import chromadb
-from chromadb.utils import embedding_functions
 import ollama
 
 # Evaluation (same as Azure version)
@@ -169,14 +168,9 @@ class LocalVectorStore:
         self.persist_dir = persist_dir
         self.client = chromadb.PersistentClient(path=persist_dir)
         
-        # Use sentence transformers for embeddings
-        self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
-        
+        # Use ChromaDB's default embedding function (no external dependencies)
         self.collection = self.client.get_or_create_collection(
-            name="knowledge_base",
-            embedding_function=self.embedding_fn
+            name="knowledge_base"
         )
         
         logger.info(f"Vector store initialized at {persist_dir}")
@@ -413,6 +407,9 @@ async def main():
     while True:
         try:
             user_input = input("You: ").strip()
+        except EOFError:
+            print("\nExiting (EOF received).")
+            break
 
             if user_input.lower() in ["exit", "quit"]:
                 break

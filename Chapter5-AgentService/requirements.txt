@@ -1,5 +1,5 @@
-# Azure AI Foundry Agent Service Dependencies
-azure-ai-agents>=1.1.0
+# Azure AI Foundry Agent Service Dependencies (New Session-based API)
+azure-ai-projects>=2.8.0
 azure-identity>=1.15.0
 azure-monitor-opentelemetry>=1.0.0
 
